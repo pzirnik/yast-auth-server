@@ -45,10 +45,12 @@ class NewDirInst < UI::Dialog
         HBox(
             Frame(_('General options (mandatory)'),
                   VBox(
-                      InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified domain name (e.g. dir.example.net)'), ''),
+                      InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified host name (e.g. dir.example.net)'), ''),
                       InputField(Id(:instance_name), Opt(:hstretch), _('Directory server instance name (e.g. MyOrgDirectory)'), ''),
                       InputField(Id(:suffix), Opt(:hstretch), _('Directory suffix (e.g. dc=example,dc=net)'), ''),
-                      InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root)'), ''),
+                      InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root -> no suffix will be appended)'), ''),
+                      VStretch(),
+
                   ),
             ),
             Frame(_('Security options (mandatory)'),
@@ -56,7 +58,9 @@ class NewDirInst < UI::Dialog
                       Password(Id(:dm_pass), Opt(:hstretch), _('Directory manager password'), ''),
                       Password(Id(:dm_pass_repeat), Opt(:hstretch), _('Repeat directory manager password'), ''),
                       InputField(Id(:tls_ca), Opt(:hstretch), _('Server TLS certificate authority in PEM format'), ''),
-                      InputField(Id(:tls_p12), Opt(:hstretch), _('Server TLS certificate and key in PKCS12 format'), ''),
+                      InputField(Id(:tls_cert), Opt(:hstretch), _('Server TLS certificate in PEM format'), ''),
+		      InputField(Id(:tls_key), Opt(:hstretch), _('Server TLS certificate key in PEM format'), ''),
+                      Password(Id(:key_pass), Opt(:hstretch), _('Certificate key password, if key is encrypted'), ''),
                   ),
             ),
         ),
@@ -76,18 +80,20 @@ class NewDirInst < UI::Dialog
     dm_pass = UI.QueryWidget(Id(:dm_pass), :Value)
     dm_pass_repeat = UI.QueryWidget(Id(:dm_pass_repeat), :Value)
     tls_ca = UI.QueryWidget(Id(:tls_ca), :Value)
-    tls_p12 = UI.QueryWidget(Id(:tls_p12), :Value)
+    tls_cert = UI.QueryWidget(Id(:tls_cert), :Value)
+    tls_key = UI.QueryWidget(Id(:tls_key), :Value)
+    key_pass = UI.QueryWidget(Id(:key_pass), :Value)
 
     # Validate input
-    if fqdn == '' || instance_name == ''|| suffix == '' || dm_dn == '' || dm_pass == '' || tls_ca == '' || tls_p12 == ''
+    if fqdn == '' || instance_name == ''|| suffix == '' || dm_dn == '' || dm_pass == '' || tls_ca == '' || tls_cert == '' || tls_key == ''
       Popup.Error(_('Please complete setup details. All input fields are mandatory.'))
       return
     end
     if dm_pass_repeat != dm_pass
-      Popup.Error(_('Two password entries do not match.'))
+      Popup.Error(_('The Directory manager password entries do not match.'))
       return
     end
-    if !File.exists?(tls_ca) || !File.exists?(tls_p12)
+    if !File.exists?(tls_ca) || !File.exists?(tls_cert) || !File.exists?(tls_key)
       Popup.Error(_('TLS certificate authority or certificate/key file does not exist.'))
       return
     end
@@ -107,7 +113,7 @@ class NewDirInst < UI::Dialog
         raise
       end
       # Turn on TLS
-      if !DS389.install_tls_in_nss(instance_name, tls_ca, tls_p12)
+      if !DS389.install_tls_in_nss(instance_name, tls_ca, tls_cert, tls_key, key_pass)
         Popup.Error(_('Failed to set up new instance! Log output may be found in %s') % [DS_SETUP_LOG_PATH])
         raise
       end
@@ -122,7 +128,17 @@ class NewDirInst < UI::Dialog
         Popup.Error(_('Failed to restart directory instance, please inspect the journal of dirsrv@%s.service') % [instance_name])
         raise
       end
-
+      if !DS389.add_ca_cert_to_system(tls_ca)
+        Popup.Error(_('Failed to install CA certificate to system database! Log output may be found in %s') % [DS_SETUP_LOG_PATH])
+	raise
+      end
+      open('/etc/openldap/ldap.conf', 'w') {|fh|
+        fh.puts(DS389.gen_ldap_conf(fqdn, suffix))
+      }
+      if !DS389.enable(instance_name)
+        Popup.Error(_('Failed to enable directory instance, please inspect the journal of dirsrv@%s.service and dirsrv.target. Log output may be found in %s') % [instance_name, DS_SETUP_LOG_PATH])
+        raise
+      end
       UI.ReplaceWidget(Id(:busy), Empty())
       Popup.Message(_('New instance has been set up! Log output may be found in %s') % [DS_SETUP_LOG_PATH])
       finish_dialog(:next)
