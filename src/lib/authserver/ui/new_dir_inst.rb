@@ -14,6 +14,7 @@ require 'yast'
 require 'ui/dialog'
 require 'authserver/dir/ds389'
 require 'authserver/dir/client'
+require 'socket'
 Yast.import 'UI'
 Yast.import 'Icon'
 Yast.import 'Label'
@@ -45,10 +46,10 @@ class NewDirInst < UI::Dialog
         HBox(
             Frame(_('General options (mandatory)'),
                   VBox(
-                      InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified host name (e.g. dir.example.net)'), ''),
+                      InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified host name (e.g. dir.example.net)'), Socket.gethostbyname(Socket.gethostname).first),
                       InputField(Id(:instance_name), Opt(:hstretch), _('Directory server instance name (e.g. MyOrgDirectory)'), ''),
-                      InputField(Id(:suffix), Opt(:hstretch), _('Directory suffix (e.g. dc=example,dc=net)'), ''),
-                      InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root -> no suffix will be appended)'), ''),
+		      InputField(Id(:suffix), Opt(:hstretch), _('Directory suffix (e.g. dc=example,dc=net)'), 'dc='+Socket.gethostbyname(Socket.gethostname).first.split('.',2).last.gsub('.',',dc=')),
+                      InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root -> no suffix will be appended)'), 'cn=root'),
                       VStretch(),
 
                   ),
@@ -57,9 +58,27 @@ class NewDirInst < UI::Dialog
                   VBox(
                       Password(Id(:dm_pass), Opt(:hstretch), _('Directory manager password'), ''),
                       Password(Id(:dm_pass_repeat), Opt(:hstretch), _('Repeat directory manager password'), ''),
-                      InputField(Id(:tls_ca), Opt(:hstretch), _('Server TLS certificate authority in PEM format'), ''),
-                      InputField(Id(:tls_cert), Opt(:hstretch), _('Server TLS certificate in PEM format'), ''),
-		      InputField(Id(:tls_key), Opt(:hstretch), _('Server TLS certificate key in PEM format'), ''),
+		      HBox(
+                        InputField(Id(:tls_ca), Opt(:hstretch), _('Server TLS certificate authority in PEM format'), ''),
+                        VBox(
+                          Label(""),
+                          PushButton(Id(:browse_ca), Label.BrowseButton)
+                        )
+                      ),
+		      HBox(
+                        InputField(Id(:tls_cert), Opt(:hstretch), _('Server TLS certificate in PEM format'), ''),
+                        VBox(
+                          Label(""),
+                          PushButton(Id(:browse_cert), Label.BrowseButton)
+                        )
+                      ),
+                      HBox(
+                        InputField(Id(:tls_key), Opt(:hstretch), _('Server TLS certificate key in PEM format'), ''),
+                        VBox(
+                          Label(""),
+                          PushButton(Id(:browse_key), Label.BrowseButton)
+                        )
+                      ),
                       Password(Id(:key_pass), Opt(:hstretch), _('Certificate key password, if key is encrypted'), ''),
                   ),
             ),
@@ -71,6 +90,31 @@ class NewDirInst < UI::Dialog
         ReplacePoint(Id(:busy), Empty()),
     )
   end
+
+  def browse_ca_handler
+    tmpname = UI.QueryWidget(Id(:tls_ca), :Value)	  
+    dir = UI.AskForExistingFile(tmpname, '*.pem', _("Choose CA Certificate"))
+    if dir
+      UI.ChangeWidget(Id(:tls_ca), :Value, dir)
+    end
+  end
+
+  def browse_cert_handler
+    tmpname = UI.QueryWidget(Id(:tls_cert), :Value)
+    dir = UI.AskForExistingFile(tmpname, '*.pem', _("Choose Server Certificate"))
+    if dir
+      UI.ChangeWidget(Id(:tls_cert), :Value, dir)
+    end
+  end
+
+  def browse_key_handler
+    tmpname = UI.QueryWidget(Id(:tls_key), :Value)
+    dir = UI.AskForExistingFile(tmpname, '*.pem', _("Choose Server Certificate Key"))
+    if dir
+      UI.ChangeWidget(Id(:tls_key), :Value, dir)
+    end
+  end
+
 
   def ok_handler
     fqdn = UI.QueryWidget(Id(:fqdn), :Value)
