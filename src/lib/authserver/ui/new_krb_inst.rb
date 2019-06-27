@@ -15,6 +15,7 @@ require 'ui/dialog'
 require 'authserver/dir/ds389'
 require 'authserver/dir/client'
 require 'authserver/krb/mit'
+require 'socket'
 Yast.import 'UI'
 Yast.import 'Icon'
 Yast.import 'Label'
@@ -47,17 +48,17 @@ class NewKrbInst < UI::Dialog
             VBox(
                 Frame(_('General options (mandatory)'),
                       VBox(
-                          InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified host name (e.g. krb.example.net)'), ''),
-                          InputField(Id(:realm), Opt(:hstretch), _('Realm name (e.g. EXAMPLE.NET)'), ''),
+                          InputField(Id(:fqdn), Opt(:hstretch), _('Fully qualified host name (e.g. krb.example.net)'), Socket.gethostbyname(Socket.gethostname).first),
+			  InputField(Id(:realm), Opt(:hstretch), _('Realm name (e.g. EXAMPLE.NET)'), Socket.gethostbyname(Socket.gethostname).first.split('.',2).last.upcase),
                       ),
                 ),
                 Frame(_('389 directory server connectivity (mandatory)'),
                       VBox(
-			  InputField(Id(:dir_addr), Opt(:hstretch), _('Fully qualified directory server name'), ''),
+			  InputField(Id(:dir_addr), Opt(:hstretch), _('Fully qualified directory server name'), Socket.gethostbyname(Socket.gethostname).first),
                           InputField(Id(:dir_inst), Opt(:hstretch), _('Directory instance name'), ''),
-                          InputField(Id(:dir_suffix), Opt(:hstretch), _('Directory suffix (e.g. dc=example,dc=net)'), ''),
-                          InputField(Id(:container_dn), Opt(:hstretch), _('Container DN of existing users (e.g. ou=users,dc=example,dc=net)'), ''),
-                          InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root -> no suffix will be appended)'), ''),
+                          InputField(Id(:dir_suffix), Opt(:hstretch), _('Directory suffix (e.g. dc=example,dc=net)'), 'dc='+Socket.gethostbyname(Socket.gethostname).first.split('.',2).last.gsub('.',',dc=')),
+                          InputField(Id(:container_dn), Opt(:hstretch), _('Container DN of existing users (e.g. ou=people,dc=example,dc=net)'), 'ou=people,dc='+Socket.gethostbyname(Socket.gethostname).first.split('.',2).last.gsub('.',',dc=')),
+                          InputField(Id(:dm_dn), Opt(:hstretch), _('Directory manager DN (e.g. cn=root -> no suffix will be appended)'), 'cn=root'),
                           Password(Id(:dm_pass), Opt(:hstretch), _('Directory manager password'), ''),
                       ),
                 ),
@@ -66,10 +67,10 @@ class NewKrbInst < UI::Dialog
                   VBox(
                       Password(Id(:master_pass), Opt(:hstretch), _('Kerberos database master password'), ''),
                       Password(Id(:master_pass_repeat), Opt(:hstretch), _('Repeat master password'), ''),
-                      InputField(Id(:kdc_dn), Opt(:hstretch), _('KDC account to create (e.g. cn=krbkdc -> suffix will be appended)'), ''),
+                      InputField(Id(:kdc_dn), Opt(:hstretch), _('KDC account to create (e.g. cn=krbkdc -> suffix will be appended)'), 'cn=krbkdc'),
                       Password(Id(:kdc_pass), Opt(:hstretch), _('Password of KDC account'), ''),
                       Password(Id(:kdc_pass_repeat), Opt(:hstretch), _('Repeat password of KDC account'), ''),
-                      InputField(Id(:admin_dn), Opt(:hstretch), _('Admin account to create (e.g. cn=krbadm -> suffix will be appended)'), ''),
+                      InputField(Id(:admin_dn), Opt(:hstretch), _('Admin account to create (e.g. cn=krbadm -> suffix will be appended)'), 'cn=krbadm'),
                       Password(Id(:admin_pass), Opt(:hstretch), _('Password of admin account'), ''),
                       Password(Id(:admin_pass_repeat), Opt(:hstretch), _('Repeat password of admin account'), ''),
                   ),
